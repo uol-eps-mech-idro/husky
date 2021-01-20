@@ -1,0 +1,211 @@
+<?xml version="1.0"?>
+
+<robot name="tina" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:arg name="velodyne_enabled" default="true" />
+  <xacro:arg name="velodyne_xyz" default="$(optenv HUSKY_VELODYNE_XYZ 0.3 0.0 0.05)" />
+  <xacro:arg name="velodyne_rpy" default="$(optenv HUSKY_VELODYNE_RPY 0.0 0.0 0.0)" />
+
+  <xacro:arg name="realsense1_enabled" default="true" />
+  <xacro:arg name="realsense1_xyz" default="$(optenv HUSKY_REALSENSE_XYZ 0.3 0 0.1)" />
+  <xacro:arg name="realsense1_rpy" default="$(optenv HUSKY_REALSENSE_RPY 0 0 0)" />
+
+  <xacro:arg name="realsense2_enabled" default="true" />
+  <xacro:arg name="realsense2_xyz" default="$(optenv HUSKY_REALSENSE_XYZ 0.3 0 0.1)" />
+  <xacro:arg name="realsense2_rpy" default="$(optenv HUSKY_REALSENSE_RPY 0 0 0)" />
+
+  <xacro:arg name="kinova_enabled" default="true" />
+  <xacro:arg name="kinova_xyz" default="$(optenv HUSKY_KINOVA_XYZ 0.18 0 0.05)" />
+  <xacro:arg name="kinova_rpy" default="$(optenv HUSKY_KINOVA_RPY 0 0 0)" />
+
+  <xacro:property name="husky_front_bumper_extend" value="$(optenv HUSKY_FRONT_BUMPER_EXTEND 0)" />
+  <xacro:property name="husky_rear_bumper_extend" value="$(optenv HUSKY_REAR_BUMPER_EXTEND 0)" />
+
+  <xacro:arg name="robot_namespace" default="/" />
+  <xacro:arg name="urdf_extras" default="empty.urdf" />
+
+  <!-- Included URDF/XACRO Files -->
+  <xacro:include filename="$(find husky_description)/urdf/decorations.urdf.xacro" />
+  <xacro:include filename="$(find husky_description)/urdf/wheel.urdf.xacro" />
+
+  <!-- Include URDF of Kinova Arm -->
+  <xacro:include filename="$(find kinova_description)/urdf/m1n4s300.xacro"/>
+
+  <!-- Include URDF of Velodyne-->
+  <xacro:include filename="$(find velodyne_description)/urdf/VLP-16.urdf.xacro"/>
+
+  <!--> Include URDF of RealSense -->
+  <xacro:include filename="$(find husky_description)/urdf/accessories/intel_realsense.urdf.xacro"/>
+  
+  <xacro:property name="M_PI" value="3.14159" />
+
+  <!-- Base Size -->
+  <xacro:property name="base_x_size" value="0.98740000" />
+  <xacro:property name="base_y_size" value="0.57090000" />
+  <xacro:property name="base_z_size" value="0.24750000" />
+
+  <!-- Wheel Mounting Positions -->
+  <xacro:property name="wheelbase" value="0.5120" />
+  <xacro:property name="track" value="0.5708" />
+  <xacro:property name="wheel_vertical_offset" value="0.03282" />
+
+  <!-- Wheel Properties -->
+  <xacro:property name="wheel_length" value="0.1143" />
+  <xacro:property name="wheel_radius" value="0.1651" />
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://husky_description/meshes/base_link.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="${( husky_front_bumper_extend - husky_rear_bumper_extend ) / 2.0} 0 ${base_z_size/4}" rpy="0 0 0" />
+      <geometry>
+        <box size="${ base_x_size + husky_front_bumper_extend + husky_rear_bumper_extend } ${base_y_size} ${base_z_size/2}"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 0 ${base_z_size*3/4-0.01}" rpy="0 0 0" />
+      <geometry>
+        <box size="${base_x_size*4/5} ${base_y_size} ${base_z_size/2-0.02}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Base footprint is on the ground under the robot -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <origin xyz="0 0 ${wheel_vertical_offset - wheel_radius}" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="base_footprint" />
+  </joint>
+
+  <!-- Inertial link stores the robot's inertial information -->
+  <link name="inertial_link">
+    <inertial>
+      <mass value="46.034" />
+      <origin xyz="-0.00065 -0.085 0.062" />
+      <inertia ixx="0.6022" ixy="-0.02364" ixz="-0.1197" iyy="1.7386" iyz="-0.001544" izz="2.0296" />
+    </inertial>
+  </link>
+
+  <joint name="inertial_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="inertial_link" />
+  </joint>
+
+  <!-- IMU Link is the standard mounting position for the UM6 IMU.-->
+  <!-- Can be modified with environment variables in /etc/ros/setup.bash -->
+  <link name="imu_link"/>
+  <joint name="imu_joint" type="fixed">
+    <origin xyz="$(optenv HUSKY_IMU_XYZ 0.19 0 0.149)" rpy="$(optenv HUSKY_IMU_RPY 0 -1.5708 3.1416)" />
+    <parent link="base_link" />
+    <child link="imu_link" />
+  </joint>
+  <gazebo reference="imu_link">
+  </gazebo>
+
+  <!-- Husky wheel macros -->
+  <xacro:husky_wheel wheel_prefix="front_left">
+    <origin xyz="${wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+  </xacro:husky_wheel>
+  <xacro:husky_wheel wheel_prefix="front_right">
+    <origin xyz="${wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+  </xacro:husky_wheel>
+  <xacro:husky_wheel wheel_prefix="rear_left">
+    <origin xyz="${-wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+  </xacro:husky_wheel>
+  <xacro:husky_wheel wheel_prefix="rear_right">
+    <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+  </xacro:husky_wheel>
+
+  <xacro:husky_decorate />
+
+
+  <!-- Kinova Arm Link -->
+  <link name="arm_root"/>
+  <joint name="connect_arm_to_husky" type="fixed">
+    <child link="arm_root" />
+    <parent link="top_plate_link" />
+    <origin xyz="0.1 0 0" rpy="0 0 -1.507" />    
+  </joint>
+  <xacro:m1n4s300  base_parent="arm_root"/>
+
+  <!-- Velodyne Lidar Link-->
+  <xacro:if value="$(arg velodyne_enabled)">
+  <VLP-16 parent="top_plate_link" name="velodyne" topic="/velodyne_points" hz="10" samples="440" gpu="false">
+    <origin xyz="0.3 0 0.004" rpy="0 0 0" />
+  </VLP-16>
+  </xacro:if>
+
+  <link name="zed/base_link"/>
+  <joint name="zed_mountpoint_joint" type="fixed">
+      <origin xyz="0.35 0 0.4" rpy="0 0 0" />
+      <parent link="base_link"/>
+      <child link="zed/base_link" />
+  </joint>	
+
+  <xacro:if value="$(arg realsense1_enabled)">
+    <link name="d435i/primary/base_link"/>
+    <joint name="realsense1_mountpoint_joint" type="fixed">
+      <origin xyz="0.35 0 0.4" rpy="0 0 0" />
+      <parent link="base_link"/>
+      <child link="d435i/primary/base_link" />
+    </joint>
+    <!-- <xacro:intel_realsense_mount prefix="RS3" topic="realsense1" parent_link="realsense1_mountpoint"/> -->
+  </xacro:if>
+
+  <xacro:if value="$(arg realsense2_enabled)">
+    <link name="d435i/secondary/base_link"/>
+    <joint name="realsense2_mountpoint_joint" type="fixed">
+      <origin xyz="-0.1 -0.25 0.4" rpy="0 0 ${3*M_PI/2.0}" />
+      <parent link="base_link"/>
+      <child link="d435i/secondary/base_link" />
+    </joint>
+    <!-- <xacro:intel_realsense_mount prefix="RS4" topic="realsense2" parent_link="realsense2_mountpoint"/> -->
+  </xacro:if>
+
+  <gazebo>
+    <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+      <robotNamespace>$(arg robot_namespace)</robotNamespace>
+      <legacyModeNS>true</legacyModeNS>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="imu_controller" filename="libhector_gazebo_ros_imu.so">
+      <robotNamespace>$(arg robot_namespace)</robotNamespace>
+      <updateRate>50.0</updateRate>
+      <bodyName>base_link</bodyName>
+      <topicName>imu/data</topicName>
+      <accelDrift>0.005 0.005 0.005</accelDrift>
+      <accelGaussianNoise>0.005 0.005 0.005</accelGaussianNoise>
+      <rateDrift>0.005 0.005 0.005 </rateDrift>
+      <rateGaussianNoise>0.005 0.005 0.005 </rateGaussianNoise>
+      <headingDrift>0.005</headingDrift>
+      <headingGaussianNoise>0.005</headingGaussianNoise>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="gps_controller" filename="libhector_gazebo_ros_gps.so">
+      <robotNamespace>$(arg robot_namespace)</robotNamespace>
+      <updateRate>40</updateRate>
+      <bodyName>base_link</bodyName>
+      <frameId>base_link</frameId>
+      <topicName>navsat/fix</topicName>
+      <velocityTopicName>navsat/vel</velocityTopicName>
+      <referenceLatitude>49.9</referenceLatitude>
+      <referenceLongitude>8.9</referenceLongitude>
+      <referenceHeading>0</referenceHeading>
+      <referenceAltitude>0</referenceAltitude>
+      <drift>0.0001 0.0001 0.0001</drift>
+    </plugin>
+  </gazebo>
+
+
+</robot>

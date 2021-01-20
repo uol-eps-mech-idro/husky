@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <arg name="robot_namespace" default="/"/>
+  <arg name="port" default="$(optenv HUSKY_PORT /dev/husky_controller)" />
+  <arg name="joy_dev" default="$(optenv HUSKY_JOY_DEVICE /dev/input/js0)" />
+  <arg name="joystick" default="true" />
+
+  <arg name="kinova_robotType" default="m1n4s300" />
+  <arg name="kinova_robotName" default="$(arg kinova_robotType)"/>
+  <arg name="kinova_robotSerial" default="not_set" />
+  <arg name="use_jaco_v1_fingers" default="false" />
+  <arg name="feedback_publish_rate" default="0.1" />
+
+  <arg name="cam1_namespace" default="/d435i/primary/"/>
+  <arg name="cam2_namespace" default="/d435i/secondary/"/>
+   
+
+  <!-- Load URDF-->
+  <param name="robot_description" command="$(find xacro)/xacro '$(find husky_description)/urdf/tina2.urdf.xacro'
+    robot_namespace:=$(arg robot_namespace)" />
+
+  <!-- Load controller configuration -->
+  <rosparam command="load" file="$(find husky_control)/config/control.yaml" />
+
+
+    <!-- Husky harware driver -->
+  <node pkg="husky_base" type="husky_node" name="husky_node">
+       <rosparam subst_value="true">
+           port: $(arg port)
+
+           control_frequency: 10.0
+           diagnostic_frequency: 1.0
+
+           max_acceleration: 3.0
+           max_speed: 1.0
+           wheel_diameter: 0.3302
+           polling_timeout: 10.0
+       </rosparam>
+  </node>
+
+  <!-- Spawn controllers -->
+  <node name="base_controller_spawner" pkg="controller_manager" type="spawner"
+        args="husky_joint_publisher husky_velocity_controller"/>
+
+  <!-- Start EKF for localization -->
+  <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization">
+    <rosparam command="load" file="$(find husky_control)/config/localization.yaml" />
+  </node>
+
+  <node pkg="interactive_marker_twist_server" type="marker_server" name="twist_marker_server" output="screen"/>
+
+  <node name="husky_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+
+  <node pkg="twist_mux" type="twist_mux" name="twist_mux">
+    <rosparam command="load" file="$(find husky_control)/config/twist_mux.yaml" />
+    <remap from="cmd_vel_out" to="husky_velocity_controller/cmd_vel"/>
+  </node>
+
+  <group ns="joy_teleop">
+    <rosparam command="load" file="$(find husky_control)/config/teleop_logitech.yaml" />
+    <node pkg="joy" type="joy_node" name="joy_node" />
+    <node pkg="teleop_twist_joy" type="teleop_node" name="teleop_twist_joy"/>
+  </group>
+
+   <!-- Diagnostic Aggregator -->
+  <node pkg="diagnostic_aggregator" type="aggregator_node" name="diagnostic_aggregator">
+      <rosparam command="load" file="$(find husky_base)/config/diagnostics.yaml"/>
+  </node>
+
+  <node name="$(arg kinova_robotName)_driver" pkg="kinova_driver" type="kinova_arm_driver" output="screen" cwd="node" args="$(arg kinova_robotType)">
+    <rosparam file="$(find kinova_bringup)/launch/config/robot_parameters.yaml" command="load" />
+    <param name="serial_number" value="$(arg kinova_robotSerial)" />   
+    <param name="robot_name" value="$(arg kinova_robotName)" />   
+    <param name="robot_type" value="$(arg kinova_robotType)" />   
+    <param name="use_jaco_v1_fingers" value="$(arg use_jaco_v1_fingers)" />   
+    <param name="status_interval_seconds" value="$(arg feedback_publish_rate)" />
+  </node>
+
+  <node name="kinova_control" pkg="kinova_demo" type="Endeffectorpos.py">
+  </node>
+
+  <node pkg="rosserial_python" type="serial_node.py" name="serial_node">
+    <param name="port" value="/dev/ttyACM0"/>
+    <param name="baud" value="57600"/>
+  </node>
+
+  <node name="$(arg kinova_robotName)_state_publisher"
+           pkg="robot_state_publisher"
+          type="robot_state_publisher">
+      <remap from="joint_states" to="/$(arg kinova_robotName)_driver/out/joint_state"/>
+  </node>
+
+  
+  <include file="$(find husky_base)/launch/navsat.launch" />
+  <include file="$(find husky_base)/launch/um7.launch" />
+  <include file="$(find husky_base)/launch/VLP16_points.launch" />
+
+</launch>

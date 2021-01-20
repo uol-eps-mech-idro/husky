@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+
+<launch>
+
+<include file="$(find husky_base)/launch/base.launch" />
+<include file="$(find husky_base)/launch/navsat.launch" />
+<include file="$(find husky_base)/launch/um7.launch" />
+<include file="$(find husky_base)/launch/VLP16_points.launch" />
+
+</launch>
